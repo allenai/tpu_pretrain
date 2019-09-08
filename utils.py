@@ -76,6 +76,7 @@ def save_checkpoint(model, epoch, output_dir):
     save_comment=f'{epoch:04d}'
     weights_name += f'-{save_comment}{ext}'
     output_model_file = os.path.join(output_dir, weights_name)
+    logging.info(f"Saving fine-tuned model to: {output_model_file}")
     torch.save(model.state_dict(), output_model_file)
 
 

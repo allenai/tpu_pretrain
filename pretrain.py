@@ -38,6 +38,7 @@ def main():
 
     args.start_epoch = utils.prepare_last_checkpoint(args.bert_model)
     model = BertForPreTraining.from_pretrained(args.bert_model)
+    logging.info(f"Saving initial checkpoint to: {args.output_dir}")
     model.save_pretrained(args.output_dir)
     model = tpu_dp.DataParallel(model, device_ids=devices)
 
@@ -77,8 +78,6 @@ def main():
             tr_loss = loss if step == 0 else  tr_loss + loss
             if pbar is not None:
                 pbar.update(1)
-        if pbar is not None:
-            pbar.close()
         return tr_loss.item()/step
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -94,7 +93,6 @@ def main():
         start = time.time()
         losses = model(tpu_training_loop, train_dataloader)
         logging.info(f'Epoch {epoch} took {round(time.time() - start, 2)} seconds. Average loss: {sum(losses)/len(losses)}')
-        logging.info(f"Saving fine-tuned model on {args.output_dir}")
         utils.save_checkpoint(model._models[0], epoch, args.output_dir)
 
     if args.tpu_report:

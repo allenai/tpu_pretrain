@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
-import pathlib
+import os
 from pathlib import Path
+import shutil
+import glob
 import logging
 import json
 import random
@@ -10,16 +12,27 @@ from collections import namedtuple
 from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset
+from pytorch_transformers.modeling_utils import WEIGHTS_NAME
 
-
-def init_logger(args):
+def init(args):
+    # init logger
     log_format = '%(asctime)-10s: %(message)s'
     if args.log_file is not None and args.log_file != "":
-        pathlib.Path(args.log_file).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.log_file).parent.mkdir(parents=True, exist_ok=True)
         logging.basicConfig(level=logging.INFO, filename=args.log_file, filemode='w', format=log_format)
         logging.warning(f'This will get logged to file: {args.log_file}')
     else:
         logging.basicConfig(level=logging.INFO, format=log_format)
+
+    # create output dir
+    if args.output_dir.is_dir() and list(args.output_dir.iterdir()):
+        logging.warning(f"Output directory ({args.output_dir}) already exists and is not empty!")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    # set random seeds
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
 
 def get_args_parser_with_general_args():
@@ -58,13 +71,49 @@ def get_args_parser_with_general_args():
     return parser
 
 
-def make_output_dir(args):
-    if args.output_dir.is_dir() and list(args.output_dir.iterdir()):
-        logging.warning(f"Output directory ({args.output_dir}) already exists and is not empty!")
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+def save_checkpoint(model, epoch, output_dir):
+    weights_name, ext = os.path.splitext(WEIGHTS_NAME)
+    save_comment=f'{epoch:04d}'
+    weights_name += f'-{save_comment}{ext}'
+    output_model_file = os.path.join(output_dir, weights_name)
+    torch.save(model.state_dict(), output_model_file)
 
 
-def get_samples_per_epoch(args):
+def prepare_last_checkpoint(pretrained_model_name_or_path):
+    if not os.path.isdir(pretrained_model_name_or_path):
+        return 0  # It is probabaly a model name, not an input directory
+
+    weights_name, ext = os.path.splitext(WEIGHTS_NAME)
+    archive_files = sorted(glob.glob(f'{pretrained_model_name_or_path}/{weights_name}*{ext}'))
+    if len(archive_files) > 1 and archive_files[-1].endswith(WEIGHTS_NAME):
+        archive_file = archive_files[-2]  # if the last file is `pytorch_model.bin`, ignore it and use the one before
+    else:
+        archive_file = archive_files[-1]
+    logging.info(f'Found {len(archive_files)} model files. Use the most recent, {archive_file}')
+
+    # extract epoch number  (some/dir/pytorch_model-epochNumber.bin or some/dir/pytorch_model.bin
+    filename = archive_file.split('/')[-1]
+    assert filename.startswith(weights_name)
+    filename_without_ext = filename.split('.')[0]
+    splits = filename_without_ext.split('-')
+    if len(splits) == 1:
+        start_epoch = 0  # filename is `pytorch_model.bin`, do nothing
+    elif len(splits) == 2:
+        # filename is `pytorch_model-epochNumber.bin`
+        assert splits[0] == weights_name
+        # read epoch number to continue training from the last point
+        start_epoch = int(splits[1]) + 1
+        # copy `pytorch_model-epochNumber.bin` to `pytorch_model.bin`
+        # because that's what the `from_pretrained` is loading from
+        dest_filename = archive_file.replace(filename, WEIGHTS_NAME)
+        logging.info(f'For loading, copy {archive_file} to {dest_filename}')
+        shutil.copy(archive_file, dest_filename)
+    else:
+        assert False  # wrong name
+    return start_epoch
+
+
+def get_dataset_stats(args, n_tpu):
     samples_per_epoch = []
     for i in range(args.epochs):
         epoch_file = args.pregenerated_data / f"epoch_{i}.json"
@@ -82,12 +131,13 @@ def get_samples_per_epoch(args):
     else:
         num_data_epochs = args.epochs
 
-    return samples_per_epoch, num_data_epochs
+    total_train_examples = 0
+    for i in range(args.start_epoch, args.epochs):
+        # The modulo takes into account the fact that we may loop over limited epochs of data
+        total_train_examples += samples_per_epoch[i % len(samples_per_epoch)]
 
-def set_seeds(args):
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    num_train_optimization_steps = int(total_train_examples / args.train_batch_size / n_tpu)
+    return num_data_epochs, num_train_optimization_steps
 
 
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")

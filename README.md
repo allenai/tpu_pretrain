@@ -70,8 +70,9 @@ python  pytorch_transformers_lm_finetuning/pregenerate_training_data.py  --train
 
 ###  Debugging and common issues
 
-TODO
+Slow first few steps, OOM, --one_tpu, restart tpu, .item(), metric report, 
 
-###  Runing on TPU Pods
 
-TODO
+###  Runing on TPU Pods (large TPUs)
+
+PyTorch/XLA TPU pod training is not working yet. 

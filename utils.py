@@ -27,6 +27,9 @@ def init(args):
     # create output dir
     if args.output_dir.is_dir() and list(args.output_dir.iterdir()):
         logging.warning(f"Output directory ({args.output_dir}) already exists and is not empty!")
+    assert 'bert' in args.output_dir.name, \
+        '''Output dir name has to contain `bert` or `roberta` for AutoModel.from_pretrained to correctly infer the model type'''
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # set random seeds
@@ -42,10 +45,8 @@ def get_args_parser_with_general_args():
 
     parser.add_argument("--bert_model", type=str, required=True, help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
-    parser.add_argument("--do_lower_case", action="store_true")
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Store training data as on-disc memmaps to massively reduce memory usage")
-
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for")
     parser.add_argument("--train_batch_size",
                         default=32,
@@ -177,7 +178,6 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
 
 class PregeneratedDataset(Dataset):
     def __init__(self, training_path, epoch, tokenizer, num_data_epochs, reduce_memory=False):
-        self.vocab = tokenizer.vocab
         self.tokenizer = tokenizer
         self.epoch = epoch
         self.data_epoch = epoch % num_data_epochs

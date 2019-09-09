@@ -6,7 +6,7 @@ import shelve
 from multiprocessing import Pool
 
 from random import random, randrange, randint, shuffle, choice
-from pytorch_transformers.tokenization_bert import BertTokenizer
+from pytorch_transformers.tokenization_auto import AutoTokenizer
 import numpy as np
 import json
 import collections
@@ -102,12 +102,12 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens):
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
                                           ["index", "label"])
 
-def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
+def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, tokenizer):
     """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
     with several refactors to clean it up and remove a lot of unnecessary variables."""
     cand_indices = []
     for (i, token) in enumerate(tokens):
-        if token == "[CLS]" or token == "[SEP]":
+        if token == tokenizer.cls_token or token == tokenizer.sep_token:
             continue
         # Whole Word Masking means that if we mask all of the wordpieces
         # corresponding to an original word. When a word has been split into
@@ -155,7 +155,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
                     masked_token = tokens[index]
                 # 10% of the time, replace with random word
                 else:
-                    masked_token = choice(vocab_list)
+                    masked_token = choice(tokenizer.vocab_list)
             masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
             tokens[index] = masked_token
 
@@ -169,7 +169,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
 
 def create_instances_from_document(
         doc_database, doc_idx, max_seq_length, short_seq_prob,
-        masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
+        masked_lm_prob, max_predictions_per_seq, whole_word_mask, tokenizer, next_sent_prediction):
     """This code is mostly a duplicate of the equivalent function from Google BERT's repo.
     However, we make some changes and improvements. Sampling is improved and no longer requires a loop in this function.
     Also, documents are sampled proportionally to the number of sentences they contain, which means each sentence
@@ -217,7 +217,7 @@ def create_instances_from_document(
                 tokens_b = []
 
                 # Random next
-                if len(current_chunk) == 1 or random() < 0.5:
+                if len(current_chunk) == 1 or (next_sent_prediction  and random() < 0.5):
                     is_random_next = True
                     target_b_length = target_seq_length - len(tokens_a)
 
@@ -239,17 +239,19 @@ def create_instances_from_document(
                     for j in range(a_end, len(current_chunk)):
                         tokens_b.extend(current_chunk[j])
                 truncate_seq_pair(tokens_a, tokens_b, max_num_tokens)
-
                 assert len(tokens_a) >= 1
                 assert len(tokens_b) >= 1
-
-                tokens = ["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b + ["[SEP]"]
-                # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
-                # They are 1 for the B tokens and the final [SEP]
-                segment_ids = [0 for _ in range(len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
+                if next_sent_prediction:
+                    tokens = [tokenizer.cls_token] + tokens_a + [tokenizer.sep_token] + tokens_b + [tokenizer.sep_token]
+                    # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
+                    # They are 1 for the B tokens and the final [SEP]
+                    segment_ids = [0 for _ in range(len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
+                else:
+                    tokens = [tokenizer.cls_token] + tokens_a + tokens_b + [tokenizer.sep_token]
+                    segment_ids = [0] * len(tokens)
 
                 tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(
-                    tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list)
+                    tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, tokenizer)
 
                 instance = {
                     "tokens": tokens,
@@ -265,7 +267,7 @@ def create_instances_from_document(
     return instances
 
 
-def create_training_file(docs, vocab_list, args, epoch_num):
+def create_training_file(docs, tokenizer, args, epoch_num):
     epoch_filename = args.output_dir / "epoch_{}.json".format(epoch_num)
     num_instances = 0
     with epoch_filename.open('w') as epoch_file:
@@ -273,7 +275,8 @@ def create_training_file(docs, vocab_list, args, epoch_num):
             doc_instances = create_instances_from_document(
                 docs, doc_idx, max_seq_length=args.max_seq_len, short_seq_prob=args.short_seq_prob,
                 masked_lm_prob=args.masked_lm_prob, max_predictions_per_seq=args.max_predictions_per_seq,
-                whole_word_mask=args.do_whole_word_mask, vocab_list=vocab_list)
+                whole_word_mask=args.do_whole_word_mask, tokenizer=tokenizer,
+                next_sent_prediction=args.do_next_sent_prediction)
             doc_instances = [json.dumps(instance) for instance in doc_instances]
             for instance in doc_instances:
                 epoch_file.write(instance + '\n')
@@ -293,7 +296,8 @@ def main():
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--bert_model", type=str, required=True,
                         choices=["bert-base-uncased", "bert-large-uncased", "bert-base-cased",
-                                 "bert-base-multilingual-uncased", "bert-base-chinese", "bert-base-multilingual-cased"])
+                                 "bert-base-multilingual-uncased", "bert-base-chinese", "bert-base-multilingual-cased",
+                                 "roberta-base", "roberta-large"])
     parser.add_argument("--do_lower_case", action="store_true")
     parser.add_argument("--do_whole_word_mask", action="store_true",
                         help="Whether to use whole word masking rather than per-WordPiece masking.")
@@ -311,14 +315,16 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=20,
                         help="Maximum number of tokens to mask in each sequence")
+    parser.add_argument("--do_next_sent_prediction", action="store_true",
+                        help="Add the next sentence prediction task (as in BERT) or ignore it (as in RoBERTa)")
 
     args = parser.parse_args()
 
     if args.num_workers > 1 and args.reduce_memory:
         raise ValueError("Cannot use multiple workers while reducing memory")
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
-    vocab_list = list(tokenizer.vocab.keys())
+    tokenizer = AutoTokenizer.from_pretrained(args.bert_model)
+    tokenizer.vocab_list = list((tokenizer.encoder if hasattr(tokenizer, 'encoder') else tokenizer.vocab).keys())
     with DocumentDatabase(reduce_memory=args.reduce_memory) as docs:
         with args.train_corpus.open() as f:
             doc = []
@@ -343,11 +349,11 @@ def main():
 
         if args.num_workers > 1:
             writer_workers = Pool(min(args.num_workers, args.epochs_to_generate))
-            arguments = [(docs, vocab_list, args, idx) for idx in range(args.epochs_to_generate)]
+            arguments = [(docs, tokenizer, args, idx) for idx in range(args.epochs_to_generate)]
             writer_workers.starmap(create_training_file, arguments)
         else:
             for epoch in trange(args.epochs_to_generate, desc="Epoch"):
-                create_training_file(docs, vocab_list, args, epoch)
+                create_training_file(docs, tokenizer, args, epoch)
 
 
 if __name__ == '__main__':

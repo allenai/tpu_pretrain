@@ -6,8 +6,8 @@ import numpy as np
 from tqdm import tqdm
 
 import utils
-from pytorch_transformers.modeling_bert import BertForPreTraining
-from pytorch_transformers.tokenization_bert import BertTokenizer
+from pytorch_transformers.modeling_auto import AutoModelWithLMHead
+from pytorch_transformers.tokenization_auto import AutoTokenizer
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
 from torch.utils.data import DataLoader, RandomSampler
@@ -16,6 +16,10 @@ import torch_xla
 import torch_xla_py.xla_model as tpu_xm
 import torch_xla_py.data_parallel as tpu_dp
 
+from pytorch_transformers.modeling_roberta import RobertaModel
+def RobertaModel_forward(self, input_ids, token_type_ids=None, attention_mask=None, position_ids=None, head_mask=None):
+    return super(RobertaModel, self).forward(input_ids, token_type_ids, attention_mask, position_ids, head_mask)
+RobertaModel.forward = RobertaModel_forward
 
 def main():
     parser = utils.get_args_parser_with_general_args()
@@ -33,11 +37,11 @@ def main():
     n_tpu = len(devices)
     logging.info(f'Found {n_tpu} TPU cores')
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
+    tokenizer = AutoTokenizer.from_pretrained(args.bert_model)
     tokenizer.save_pretrained(args.output_dir)
 
     args.start_epoch = utils.prepare_last_checkpoint(args.bert_model)
-    model = BertForPreTraining.from_pretrained(args.bert_model)
+    model = AutoModelWithLMHead.from_pretrained(args.bert_model)
     logging.info(f"Saving initial checkpoint to: {args.output_dir}")
     model.save_pretrained(args.output_dir)
     model = tpu_dp.DataParallel(model, device_ids=devices)
@@ -67,8 +71,9 @@ def main():
         model.train()
 
         for step, batch in loader:
-            input_ids, input_mask, segment_ids, lm_label_ids, is_next = batch
-            outputs = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next)
+
+            input_ids, input_mask, segment_ids, lm_label_ids, _ = batch
+            outputs = model(input_ids, segment_ids, input_mask, lm_label_ids)
             loss = outputs[0]
             loss.backward()
             tracker.add(args.train_batch_size)

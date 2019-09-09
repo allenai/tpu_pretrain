@@ -1,4 +1,4 @@
-FROM gcr.io/tpu-pytorch/xla:nightly
+FROM gcr.io/tpu-pytorch/xla:nightly  # Docker image for PyTorch/XLA for the nightly build
 
 RUN apt-get install -y gdb
 Run apt-get install -y vim

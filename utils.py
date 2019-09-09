@@ -43,8 +43,9 @@ def get_args_parser_with_general_args():
     parser.add_argument('--pregenerated_data', type=Path, required=True)
     parser.add_argument('--output_dir', type=Path, required=True)
 
-    parser.add_argument("--bert_model", type=str, required=True, help="Bert pre-trained model selected in the list: bert-base-uncased, "
-                             "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
+    parser.add_argument("--bert_model", type=str, required=True, help="Bert pre-trained model. Either a path to the model dir or "
+                             "selected from list: bert-base-uncased, bert-large-uncased, bert-base-cased, "
+                             "bert-base-multilingual, bert-base-chinese, roberta-base, roberta-large")
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Store training data as on-disc memmaps to massively reduce memory usage")
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for")

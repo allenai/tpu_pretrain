@@ -8,7 +8,7 @@ This repo makes it easy to train language models on PyTorch/TPU. It relies on tw
 To use TPUs, all your computations happen on Google Cloud. Use the command `ctpu` to instantiate a TPU and VM,
 
 ```
-ctpu up -tf-version=pytorch-nightly -name [lm_tpu] -tpu-size [v3-8] -machine-type=[n1-standard-16] -zone=[us-central1-a] -gcp-network=[default] -project=[my_proj] [-preemptible] [-tpu-only]
+ctpu up -tf-version=pytorch-nightly -name=[lm_tpu] -tpu-size=[v3-8] -machine-type=[n1-standard-16] -zone=[us-central1-a] -gcp-network=[default] -project=[my_proj] [-preemptible] [-tpu-only]
 ```
 
 -  Replace the parameters in square prackets with the right values for you. Make sure to get the `zone`, `gcp-network`, `preemptible`, `project` right, especially if you are using credit from TFRC.

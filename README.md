@@ -76,3 +76,7 @@ Slow first few steps, OOM, --one_tpu, restart tpu, .item(), metric report,
 ###  Runing on TPU Pods (large TPUs)
 
 PyTorch/XLA TPU pod training is not working yet. 
+
+
+## Performance Evaluation
+![metrics](https://ai2-s2-research.s3-us-west-2.amazonaws.com/beltagy/public/metrics.png)

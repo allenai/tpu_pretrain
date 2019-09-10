@@ -9,12 +9,10 @@ import utils  # Most of the code in adopted from https://github.com/huggingface/
 from pytorch_transformers.modeling_auto import AutoModelWithLMHead
 from pytorch_transformers.tokenization_auto import AutoTokenizer
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
+from pytorch_transformers.modeling_bert import BertForPreTraining
 
 from torch.utils.data import DataLoader, RandomSampler
 import torch
-import torch_xla
-import torch_xla_py.xla_model as tpu_xm
-import torch_xla_py.data_parallel as tpu_dp
 
 from pytorch_transformers.modeling_roberta import RobertaModel
 def RobertaModel_forward(self, input_ids, token_type_ids=None, attention_mask=None, position_ids=None, head_mask=None):
@@ -26,13 +24,20 @@ def main():
     parser.add_argument("--tpu_ip", type=str, default="", help="TPU IP address")
     parser.add_argument('--one_tpu', action='store_true', help="Run on one tpu core for degugging. Makes it easy to use break points")
     parser.add_argument('--tpu_report', action='store_true', help="Print xla metric report")
+    parser.add_argument('--device', type=str, default="tpu", choices=["tpu", "cuda", "cpu"], help="For debugging, switch to GPU or CPU")
     args = parser.parse_args()
 
     utils.init(args)  # set seeds, init logger, prepare output directory
 
-    devices = tpu_xm.get_xla_supported_devices()
-    if args.one_tpu:
-        devices = [devices[0]]
+    if args.device == 'tpu':
+        import torch_xla
+        import torch_xla_py.xla_model as tpu_xm
+        import torch_xla_py.data_parallel as tpu_dp
+        devices = tpu_xm.get_xla_supported_devices()
+        if args.one_tpu:
+            devices = [devices[0]]
+    else:
+        devices = [torch.device(args.device)]  # gpu or cpu
     n_tpu = len(devices)
     logging.info(f'Found {n_tpu} TPU cores on TPU_IP: {args.tpu_ip}')
 
@@ -40,10 +45,14 @@ def main():
     tokenizer.save_pretrained(args.output_dir)
 
     args.start_epoch = utils.prepare_last_checkpoint(args.bert_model)
-    model = AutoModelWithLMHead.from_pretrained(args.bert_model)  # Only Masked Language Modeling
+    model = BertForPreTraining.from_pretrained(args.bert_model)  # Only Masked Language Modeling
     logging.info(f"Saving initial checkpoint to: {args.output_dir}")
     model.save_pretrained(args.output_dir)
-    model = tpu_dp.DataParallel(model, device_ids=devices)
+    if args.device == 'tpu':
+        model = tpu_dp.DataParallel(model, device_ids=devices)
+    else:
+        model.to(devices[0])
+        context = utils.Context()
 
     num_data_epochs, num_train_optimization_steps= utils.get_dataset_stats(args, n_tpu)
 
@@ -70,16 +79,18 @@ def main():
         if str(pbar_device) == str(device):  # All threads are in sync. Use progress bar only on one of them
             pbar = tqdm(total=int(pbar_steps), desc=f"device {device}", dynamic_ncols=True)
 
-        tracker = tpu_xm.RateTracker()
-
         model.train()
         for step, batch in loader:
-            input_ids, input_mask, segment_ids, lm_label_ids, _ = batch
-            outputs = model(input_ids, segment_ids, input_mask, lm_label_ids)
+            if args.device != 'tpu':
+                batch = tuple(t.to(device) for t in batch)
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next = batch
+            outputs = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next)
             loss = outputs[0]
             loss.backward()  # no need for gradient accumulation, we already use large batches
-            tracker.add(args.train_batch_size)
-            tpu_xm.optimizer_step(optimizer)
+            if args.device == 'tpu':
+                tpu_xm.optimizer_step(optimizer)
+            else:
+                optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
             tr_loss = loss if step == 0 else  tr_loss + loss
@@ -99,7 +110,10 @@ def main():
 
         logging.info(f'start training, epoch {epoch} on {len(devices)} cores for {pbar_steps} steps')
         start = time.time()
-        losses = model(tpu_training_loop, train_dataloader)  # calls `tpu_training_loop` multiple times, once per TPU core
+        if args.device == 'tpu':
+            losses = model(tpu_training_loop, train_dataloader)  # calls `tpu_training_loop` multiple times, once per TPU core
+        else:
+            losses = [tpu_training_loop(model, enumerate(train_dataloader), devices[0], context)]
         logging.info(f'Epoch {epoch} took {round(time.time() - start, 2)} seconds. Average loss: {sum(losses)/len(losses)}')
         utils.save_checkpoint(model._models[0], epoch, args.output_dir)
 

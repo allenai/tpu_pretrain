@@ -240,3 +240,12 @@ class PregeneratedDataset(Dataset):
                 torch.tensor(self.segment_ids[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
                 torch.tensor(self.is_nexts[item].astype(np.int64)))
+
+class Context(object):
+    """Spoofing `torch_xla_py.data_parallel.Context` to run the code on GPU and CPU for debugging"""
+    def getattr_or(self, name, defval):
+        value = getattr(self, name, None)
+        if value is None:
+            value = defval() if callable(defval) else defval
+            setattr(self, name, value)
+        return value

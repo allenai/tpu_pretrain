@@ -54,7 +54,10 @@ def main():
         model.to(devices[0])
         context = utils.Context()
 
-    num_data_epochs, num_train_optimization_steps= utils.get_dataset_stats(args, n_tpu)
+    if args.fake_data:
+        num_data_epochs, num_train_optimization_steps = (1, 100)
+    else:
+        num_data_epochs, num_train_optimization_steps= utils.get_dataset_stats(args, n_tpu)
 
     def tpu_training_loop(model, loader, device, context):
         """ Called by torch_xla_py.data_parallel. This function is executed on each core of the TPU once per epoch"""

@@ -9,7 +9,6 @@ import utils  # Most of the code in adopted from https://github.com/huggingface/
 from pytorch_transformers.modeling_auto import AutoModelWithLMHead
 from pytorch_transformers.tokenization_auto import AutoTokenizer
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
-from pytorch_transformers.modeling_bert import BertForPreTraining
 
 from torch.utils.data import DataLoader, RandomSampler
 import torch
@@ -45,7 +44,8 @@ def main():
     tokenizer.save_pretrained(args.output_dir)
 
     args.start_epoch = utils.prepare_last_checkpoint(args.bert_model)
-    model = BertForPreTraining.from_pretrained(args.bert_model)  # Only Masked Language Modeling
+    model = AutoModelWithLMHead.from_pretrained(args.bert_model)  # Only Masked Language Modeling
+
     logging.info(f"Saving initial checkpoint to: {args.output_dir}")
     model.save_pretrained(args.output_dir)
     if args.device == 'tpu':
@@ -83,8 +83,9 @@ def main():
         for step, batch in loader:
             if args.device != 'tpu':
                 batch = tuple(t.to(device) for t in batch)
-            input_ids, input_mask, segment_ids, lm_label_ids, is_next = batch
-            outputs = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next)
+            input_ids, input_mask, segment_ids, lm_label_ids, _ = batch
+            outputs = model(input_ids=input_ids, attention_mask=input_mask, token_type_ids=segment_ids,
+                            masked_lm_labels=lm_label_ids)
             loss = outputs[0]
             loss.backward()  # no need for gradient accumulation, we already use large batches
             if args.device == 'tpu':
@@ -96,12 +97,16 @@ def main():
             tr_loss = loss if step == 0 else  tr_loss + loss
             if pbar is not None:
                 pbar.update(1)
-        return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
+        return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch
 
     for epoch in range(args.start_epoch, args.epochs):
-        # Load one training file into memory
-        epoch_dataset = utils.PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
-                                            num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
+        if args.fake_data:
+            epoch_dataset = utils.FakeDataset(num_samples=100, seq_len=512, vocab_size=1000, max_predictions_per_seq=75)
+        else:
+            epoch_dataset = utils.PregeneratedDataset(
+                epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
+                num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
+
         train_sampler = RandomSampler(epoch_dataset)
         train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
 

@@ -69,6 +69,9 @@ def get_args_parser_with_general_args():
                         type=int,
                         default=42,
                         help="random seed for initialization")
+    parser.add_argument('--fake_data',
+                        action='store_true',
+                        help="Train on fake data for debugging")
     parser.add_argument('--log-file', default=None, type=str)
     return parser
 
@@ -240,6 +243,23 @@ class PregeneratedDataset(Dataset):
                 torch.tensor(self.segment_ids[item].astype(np.int64)),
                 torch.tensor(self.lm_label_ids[item].astype(np.int64)),
                 torch.tensor(self.is_nexts[item].astype(np.int64)))
+
+class FakeDataset(PregeneratedDataset):
+    def __init__(self, num_samples, seq_len, vocab_size, max_predictions_per_seq):
+        self.num_samples = num_samples
+        self.seq_len = seq_len
+        self.input_ids = np.random.randint(1, vocab_size, size=(num_samples, seq_len), dtype=np.int32)
+        self.input_masks = np.ones(shape=(num_samples, seq_len), dtype=np.bool)
+        self.segment_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.bool)
+        self.lm_label_ids = np.full(shape=(num_samples, seq_len), dtype=np.int32, fill_value=-1)
+        self.is_nexts = np.zeros(shape=(num_samples,), dtype=np.bool)
+        masked = np.random.randint(0, seq_len, size=(num_samples, max_predictions_per_seq), dtype=np.int32)
+        for i, mask_row in enumerate(masked):
+            for mask_index in mask_row:
+                self.lm_label_ids[i][mask_index] = self.input_ids[i][mask_index]
+                self.input_ids[i][mask_index] = 0
+        logging.info("Loading fake data complete!")
+
 
 class Context(object):
     """Spoofing `torch_xla_py.data_parallel.Context` to run the code on GPU and CPU for debugging"""

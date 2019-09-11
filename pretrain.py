@@ -55,7 +55,7 @@ def main():
         context = utils.Context()
 
     if args.fake_data:
-        num_data_epochs, num_train_optimization_steps = (1, 100)
+        num_data_epochs, num_train_optimization_steps = (1, 1000)
     else:
         num_data_epochs, num_train_optimization_steps= utils.get_dataset_stats(args, n_tpu)
 
@@ -104,7 +104,7 @@ def main():
 
     for epoch in range(args.start_epoch, args.epochs):
         if args.fake_data:
-            epoch_dataset = utils.FakeDataset(num_samples=100, seq_len=512, vocab_size=1000, max_predictions_per_seq=75)
+            epoch_dataset = utils.FakeDataset(num_samples=1000, seq_len=512, vocab_size=10000, max_predictions_per_seq=75)
         else:
             epoch_dataset = utils.PregeneratedDataset(
                 epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,

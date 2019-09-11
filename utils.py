@@ -40,7 +40,7 @@ def init(args):
 
 def get_args_parser_with_general_args():
     parser = ArgumentParser()
-    parser.add_argument('--pregenerated_data', type=Path, required=True)
+    parser.add_argument('--pregenerated_data', type=Path, required=False)
     parser.add_argument('--output_dir', type=Path, required=True)
 
     parser.add_argument("--bert_model", type=str, required=True, help="Bert pre-trained model. Either a path to the model dir or "

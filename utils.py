@@ -79,6 +79,11 @@ def save_checkpoint(model, epoch, output_dir):
     weights_name += f'-{save_comment}{ext}'
     output_model_file = os.path.join(output_dir, weights_name)
     logging.info(f"Saving fine-tuned model to: {output_model_file}")
+    state_dict = model.state_dict()
+    for t_name in state_dict:
+       t_val = state_dict[t_name]
+       state_dict[t_name] = t_val.to('cpu')
+       torch.save(state_dict, output_model_file)
     torch.save(model.state_dict(), output_model_file)
 
 

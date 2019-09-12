@@ -83,8 +83,7 @@ def save_checkpoint(model, epoch, output_dir):
     for t_name in state_dict:
        t_val = state_dict[t_name]
        state_dict[t_name] = t_val.to('cpu')
-       torch.save(state_dict, output_model_file)
-    torch.save(model.state_dict(), output_model_file)
+    torch.save(state_dict, output_model_file)
 
 
 def prepare_last_checkpoint(pretrained_model_name_or_path):

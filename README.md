@@ -5,44 +5,39 @@ This repo makes it easy to train language models on PyTorch/TPU. It relies on tw
 
 ###  Create Cloud TPU
 
-To use TPUs, all your computations happen on Google Cloud. Use the command `ctpu` to instantiate a TPU and VM,
+To use TPUs, all your computations happen on Google Cloud. Use the command `ctpu` to instantiate a TPU
 
 ```
-ctpu up -tf-version=pytorch-nightly -name=[lm_tpu] -tpu-size=[v3-8] -machine-type=[n1-standard-16] -zone=[us-central1-a] -gcp-network=[default] -project=[my_proj] [-preemptible] [-tpu-only]
+ctpu up -tf-version=pytorch-nightly -name=[lm_tpu] -tpu-size=[v3-8] -tpu-only -zone=[us-central1-a] -gcp-network=[default] -project=[my_proj] [-preemptible]
 ```
 
--  Replace the parameters in square prackets with the right values for you. Make sure to get the `zone`, `gcp-network`, `preemptible`, `project` right, especially if you are using credit from TFRC.
-
-- This command will create a Cloud TPU and a separate VM, and you need both to run your code. A `n1-standard-16` machine is reasonable sized as smaller machines might not be fast enough. If you already have a VM, add the argument `-tpu_only`.
+- Replace the parameters in square prackets with the right values for you. Make sure to get the `zone`, `gcp-network`, `preemptible`, `project` right, especially if you are using credit from TFRC.
 
 - The `-tf-version=pytorch-nightly` argument is very important. It specifies that this TPU will be used to run PyTorch code (not Tensorflow code). It uses the nightly build, which has many bug fixes that are not in the prerelease `pytorch-0.1`.
 
 - Our code only supports Cloud TPUs (v2-8 and v3-8), and not the larger TPU pods. We will add support for those in the future.
 
-- It is easier to use the `ctpu` command than using the Google Cloud console interface. `ctpu` automatically finds an IP for the TPU, and sets the right permissions for the VM
-
+- It is easier to use the `ctpu` command than using the Google Cloud console interface. `ctpu` automatically finds an IP for the TPU
 
 ###  Setup environemnt
 
+- In addition to the Cloud TPU, you also need a VM. Follow the instructions in [PyTorch/XLA](https://github.com/pytorch/xla/) to create a VM that has PyTorch/XLA Image. 
+
 - ssh to the VM created in the previous step
 
-- Build docker image
+- Clone the code, activate conda and set TPU IP
 ```
 git clone https://github.com/allenai/tpu_pretrain.git
 cd tpu_pretrain
-docker build . -t tpu_pretrain
+conda env list
+conda activate pytorch-nightly  # use the nightly build
+export XRT_TPU_CONFIG="tpu_worker;0;$TPU_IP_ADDRESS:8470"  # where $TPU_IP_ADDRESS is the IP of the Cloud TPU created above
 ```
-While the environment can be setup in multiple different ways, we found that using docker is the most convenient way. Our docker image contains both libraries(PyTorch/XLA and pytorch-transformers). We use the "nighlty" build of PyTorch/XLA because it has many bug fixes that are important for our code to run, and that are not in the stable prerelease. 
-
-- Run the docker container
-```
-docker run -it --mount type=bind,source="$(pwd)",target=/code  -e TPU_IP=[TPU_IP] tpu_pretrain
-```
-and replace `[TPU_IP]` with IP of the TPU you just created.
 
 - To test that everything is working fine, run the mnist example
 ```
-python /pytorch/xla/test/test_train_mnist.py
+cd /usr/share/torch-xla-0.1/pytorch/xla
+python test/test_train_mnist.py
 ```
 
 ###  Run LM pretraining

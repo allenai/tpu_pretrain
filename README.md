@@ -44,7 +44,7 @@ python test/test_train_mnist.py
 
 ```
 cd /code
-python -m pretrain  --pregenerated_data data/pregenerated_training_data/  --output_dir finetuned_roberta_base  --epochs 4  --bert_model  roberta-base  --tpu_ip $TPU_IP  --train_batch_size 24
+python -m pretrain  --pregenerated_data data/pregenerated_training_data/  --output_dir finetuned_roberta_base  --epochs 4  --bert_model  roberta-base  --train_batch_size 24
 ```
 It fine tunes the roberta-base model on the sample pregenerated training data on `data/pregenerated_training_data/`. Each epoch will take around 15 minutes. Notice that the first few steps are usually slower than the rest because the TPU compiles the graph in the first steps, then use the cached compiled one for subsequent steps.
 

@@ -23,7 +23,6 @@ RobertaModel.forward = RobertaModel_forward  # RobertaModel.forward has a `.item
 
 def main():
     parser = utils.get_args_parser_with_general_args()
-    parser.add_argument("--tpu_ip", type=str, default="", help="TPU IP address")
     parser.add_argument('--one_tpu', action='store_true', help="Run on one tpu core for degugging. Makes it easy to use break points")
     parser.add_argument('--tpu_report', action='store_true', help="Print xla metric report")
     args = parser.parse_args()
@@ -34,7 +33,7 @@ def main():
     if args.one_tpu:
         devices = [devices[0]]
     n_tpu = len(devices)
-    logging.info(f'Found {n_tpu} TPU cores on TPU_IP: {args.tpu_ip}')
+    logging.info(f'Found {n_tpu} TPU cores')
 
     tokenizer = AutoTokenizer.from_pretrained(args.bert_model)
     tokenizer.save_pretrained(args.output_dir)

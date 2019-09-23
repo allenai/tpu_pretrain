@@ -144,7 +144,7 @@ def get_dataset_stats(args, n_tpu):
         # The modulo takes into account the fact that we may loop over limited epochs of data
         total_train_examples += samples_per_epoch[i % len(samples_per_epoch)]
 
-    num_train_optimization_steps = int(total_train_examples / args.train_batch_size / n_tpu)
+    num_train_optimization_steps = int(total_train_examples / args.train_batch_size / args.gradient_accumulation_steps / n_tpu)
     return num_data_epochs, num_train_optimization_steps
 
 

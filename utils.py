@@ -49,6 +49,7 @@ def get_args_parser_with_general_args():
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Store training data as on-disc memmaps to massively reduce memory usage")
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=0, help="Number of gradient accumulation steps")
     parser.add_argument("--train_batch_size",
                         default=32,
                         type=int,
@@ -143,7 +144,7 @@ def get_dataset_stats(args, n_tpu):
         # The modulo takes into account the fact that we may loop over limited epochs of data
         total_train_examples += samples_per_epoch[i % len(samples_per_epoch)]
 
-    num_train_optimization_steps = int(total_train_examples / args.train_batch_size / n_tpu)
+    num_train_optimization_steps = int(total_train_examples / args.train_batch_size / args.gradient_accumulation_steps / n_tpu)
     return num_data_epochs, num_train_optimization_steps
 
 

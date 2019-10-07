@@ -240,10 +240,9 @@ def create_instances_from_document(
                 else:
                     is_random_next = False
                     for j in range(a_end, len(current_chunk)):
-                        tokens_b.extend(current_chunk[j])
+                        tokens_a.extend(current_chunk[j])  # put the tokens of the second segment in tokens_a
                 truncate_seq_pair(tokens_a, tokens_b, max_num_tokens)
                 assert len(tokens_a) >= 1
-                assert len(tokens_b) >= 1
                 if next_sent_prediction:
                     tokens = [tokenizer.cls_token] + tokens_a + [tokenizer.sep_token] + tokens_b + [tokenizer.sep_token]
                     # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]

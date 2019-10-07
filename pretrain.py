@@ -59,7 +59,7 @@ def main():
         # one optimizer and scheduler per TPU core. Both objects are saved in `context` to be reused the next epoch
         optimizer = context.getattr_or(
             'optimizer',
-            AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon))
+            AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=tuple(args.betas)))
         scheduler = context.getattr_or(
             'scheduler',
             WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=num_train_optimization_steps))
@@ -76,14 +76,20 @@ def main():
             input_ids, input_mask, segment_ids, lm_label_ids, _ = batch
             outputs = model(input_ids, segment_ids, input_mask, lm_label_ids)
             loss = outputs[0]
-            loss.backward()  # no need for gradient accumulation, we already use large batches
+            if args.gradient_accumulation_steps > 1:
+                loss = loss / args.gradient_accumulation_steps
+            loss.backward()
             tracker.add(args.train_batch_size)
-            tpu_xm.optimizer_step(optimizer)
-            scheduler.step()
-            optimizer.zero_grad()
-            tr_loss = loss if step == 0 else  tr_loss + loss
+            
+            tr_loss = loss * args.gradient_accumulation_steps if step == 0 else  tr_loss + loss * args.gradient_accumulation_steps
             if pbar is not None:
                 pbar.update(1)
+            if (step + 1) % args.gradient_accumulation_steps == 0:
+                tpu_xm.optimizer_step(optimizer)
+                scheduler.step()
+                optimizer.zero_grad()
+
+            
         return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
 
     for epoch in range(args.start_epoch, args.epochs):

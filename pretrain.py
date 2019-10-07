@@ -59,7 +59,7 @@ def main():
         # one optimizer and scheduler per TPU core. Both objects are saved in `context` to be reused the next epoch
         optimizer = context.getattr_or(
             'optimizer',
-            AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=(0.9, 0.98)))
+            AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=tuple(args.betas)))
         scheduler = context.getattr_or(
             'scheduler',
             WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=num_train_optimization_steps))

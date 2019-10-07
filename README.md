@@ -62,16 +62,38 @@ python  pytorch_transformers_lm_finetuning/pregenerate_training_data.py  --train
 
 - If you have large number of files, consider using the argument `--num_workers x`.
 
+###  TODO:
+
+- Switch to the MP interface discussed [here](https://github.com/pytorch/xla/blob/master/API_GUIDE.md). This is expected to speedup the code by around 1.5x-2x
+
+- Add support for TPU pods to scale up training. The change is mainly to figure out how to distribute the training data over the machines (for example, [this](https://github.com/pytorch/xla/blob/master/test/test_train_imagenet.py#L143))
+
 
 ###  Debugging and common issues
 
-Slow first few steps, OOM, --one_tpu, restart tpu, .item(), metric report, 
+- The first few steps are slow. This is because the TPU node is compiling the computation graph.
 
+- If you get a random OOM for no reason, try restarting the TPU node.
 
-###  Runing on TPU Pods (large TPUs)
+- Profiling tools are not available yet. The profiling tools made for tf don't work for TPU nodes running PyTorch/XLA.
 
-PyTorch/XLA TPU pod training is not working yet. 
+- Use the flag `--one_tpu` to run your code on a single TPU core. This makes it easy to put breakpoints in your code for debugging.
+
+- TPUs use static graph. Any PyTorch function that results into a dynamic graph will slow down performance considerably.
+
+- Trips from TPU to CPU is very slow, so functions like `.item()` are very slow. That's why this code reports the loss sporadically. 
+
+- Use the flag `--tpu_report` to print the TPU metric report. The report is usually helpful for debugging.
 
 
 ## Performance Evaluation
+
+We compared the performance of TPUs/GPUs on PyTorch/Tensorflow, and the table below summarizes the results. 
+
 ![metrics](https://ai2-s2-research.s3-us-west-2.amazonaws.com/beltagy/public/metrics.png)
+
+The performance numbers show that: 
+
+1- TPU v3-8 (the smallest TPU which has 8 cores) is faster than 8 V100 GPUs that have the same amount of memory
+
+2- Running PyTorch on TPUs is still 5x slower than Tensorflow. Switching to the MP interface should reduce this gap. Reaching the same level of performance will likely require some model-specific tuning.

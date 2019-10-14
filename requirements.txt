@@ -1,3 +1,4 @@
 pytorch-transformers==1.2.0
 natsort
 tqdm
+torch_xla

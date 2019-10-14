@@ -21,6 +21,8 @@ def RobertaModel_forward(self, input_ids, token_type_ids=None, attention_mask=No
     return super(RobertaModel, self).forward(input_ids, token_type_ids, attention_mask, position_ids, head_mask)
 RobertaModel.forward = RobertaModel_forward  # RobertaModel.forward has a `.item()` which doesn't work nicely with TPUs
 
+
+
 def main():
     parser = utils.get_args_parser_with_general_args()
     parser.add_argument('--one_tpu', action='store_true', help="Run on one tpu core for degugging. Makes it easy to use break points")
@@ -90,7 +92,7 @@ def main():
                 optimizer.zero_grad()
 
             
-        return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
+        return tr_loss.item()/step, context  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
 
     for epoch in range(args.start_epoch, args.epochs):
         # Load one training file into memory
@@ -104,9 +106,12 @@ def main():
 
         logging.info(f'start training, epoch {epoch} on {len(devices)} cores for {pbar_steps} steps')
         start = time.time()
-        losses = model(tpu_training_loop, train_dataloader)  # calls `tpu_training_loop` multiple times, once per TPU core
+        loss_context_tups = model(tpu_training_loop, train_dataloader)  # calls `tpu_training_loop` multiple times, once per TPU core
+        losses, contexts = zip(*loss_context_tups)
         logging.info(f'Epoch {epoch} took {round(time.time() - start, 2)} seconds. Average loss: {sum(losses)/len(losses)}')
-        utils.save_checkpoint(model._models[0], epoch, args.output_dir)
+        utils.save_checkpoint(model=model._models[0],
+                              optimizer=contexts[0].getattr_or('optimizer'),
+                              epoch, args.output_dir)
 
     if args.tpu_report:
         logging.info(torch_xla._XLAC._xla_metrics_report())

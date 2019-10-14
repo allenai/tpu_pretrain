@@ -79,16 +79,30 @@ def get_args_parser_with_general_args():
     return parser
 
 
-def save_checkpoint(model, epoch, output_dir):
+def save_checkpoint(model, optimizer, lr_scheduler, epoch, output_dir):
+    # compute filename
     weights_name, ext = os.path.splitext(WEIGHTS_NAME)
     save_comment=f'{epoch:04d}'
     weights_name += f'-{save_comment}{ext}'
     output_model_file = os.path.join(output_dir, weights_name)
     logging.info(f"Saving fine-tuned model to: {output_model_file}")
-    state_dict = model.state_dict()
-    for t_name in state_dict:
-       t_val = state_dict[t_name]
-       state_dict[t_name] = t_val.to('cpu')
+
+    # wrapper state dict
+    state_dict = {}
+
+    # model state dict
+    model_state_dict = model.state_dict()
+    for t_name in model_state_dict:
+       t_val = model_state_dict[t_name]
+       model_state_dict[t_name] = t_val.to('cpu')
+    state_dict['model'] = model_state_dict
+
+    # optimizer state dict
+    state_dict['optimizer'] = optimizer.state_dict()
+
+    # lr scheduler state dict
+    state_dict['lr_scheduler'] = lr_scheduler.state_dict()
+
     torch.save(state_dict, output_model_file)
 
 

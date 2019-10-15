@@ -60,9 +60,17 @@ def main():
         optimizer = context.getattr_or(
             'optimizer',
             AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=tuple(args.betas)))
+
+        # derive warmup info
+        if args.warmup_proportion:
+            warmup_steps = int(args.warmup_proportion * num_train_optimization_steps)
+        elif args.warmup_steps:
+            warmup_steps = args.warmup_steps
+        else:
+            raise Exception('What is the warmup?? Specify either warmup proportion or steps')
         scheduler = context.getattr_or(
             'scheduler',
-            WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=num_train_optimization_steps))
+            WarmupLinearSchedule(optimizer, warmup_steps=warmup_steps, t_total=num_train_optimization_steps))
 
         tr_loss = None
         pbar = None
@@ -84,13 +92,14 @@ def main():
             tr_loss = loss * args.gradient_accumulation_steps if step == 0 else  tr_loss + loss * args.gradient_accumulation_steps
             if pbar is not None:
                 pbar.update(1)
+                pbar.set_description(desc=f'LR: {scheduler.get_lr()}')
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 tpu_xm.optimizer_step(optimizer)
                 scheduler.step()
                 optimizer.zero_grad()
 
 
-        return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
+        return tr_loss.item() / step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
 
     for epoch in range(args.start_epoch, args.epochs):
         # Load one training file into memory

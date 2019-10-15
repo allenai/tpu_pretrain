@@ -80,7 +80,7 @@ def main():
                 loss = loss / args.gradient_accumulation_steps
             loss.backward()
             tracker.add(args.train_batch_size)
-            
+
             tr_loss = loss * args.gradient_accumulation_steps if step == 0 else  tr_loss + loss * args.gradient_accumulation_steps
             if pbar is not None:
                 pbar.update(1)
@@ -89,7 +89,7 @@ def main():
                 scheduler.step()
                 optimizer.zero_grad()
 
-            
+
         return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -100,7 +100,10 @@ def main():
         train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
 
         pbar_device = devices[0]
-        pbar_steps = int(train_sampler.num_samples / args.train_batch_size / n_tpu)
+        pbar_steps = utils.compute_num_steps_in_epoch(num_samples=train_sampler.num_samples,
+                                                      batch_size=args.train_batch_size,
+                                                      grad_accum_steps=args.gradient_accumulation_steps,
+                                                      n_tpu=n_tpu)
 
         logging.info(f'start training, epoch {epoch} on {len(devices)} cores for {pbar_steps} steps')
         start = time.time()

@@ -63,6 +63,10 @@ def get_args_parser_with_general_args():
                         default=0, 
                         type=int,
                         help="Linear warmup over warmup_steps.")
+    parser.add_argument("--warmup_proportion",
+                        type=float,
+                        required=False,
+                        help="Linear warmup over warmup_steps.")
     parser.add_argument("--adam_epsilon", 
                         default=1e-8, 
                         type=float,

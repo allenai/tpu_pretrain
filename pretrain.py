@@ -62,9 +62,9 @@ def main():
             AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=tuple(args.betas)))
 
         # derive warmup info
-        if args.warmup_proportion:
-            warmup_steps = int(args.warmup_proportion * num_train_optimization_steps)
-        elif args.warmup_steps:
+        if args.warmup_proportion is None:
+            warmup_steps = int(args.warmup_proportion * num_train_optimization_steps + 0.5)
+        elif args.warmup_steps is None:
             warmup_steps = args.warmup_steps
         else:
             raise Exception('What is the warmup?? Specify either warmup proportion or steps')
@@ -97,7 +97,6 @@ def main():
                 tpu_xm.optimizer_step(optimizer)
                 scheduler.step()
                 optimizer.zero_grad()
-
 
         return tr_loss.item() / step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
 

@@ -49,7 +49,7 @@ def get_args_parser_with_general_args():
     parser.add_argument("--reduce_memory", action="store_true",
                         help="Store training data as on-disc memmaps to massively reduce memory usage")
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=0, help="Number of gradient accumulation steps")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of gradient accumulation steps")
     parser.add_argument("--betas",
                         nargs=2,
                         type=float,

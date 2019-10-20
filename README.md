@@ -8,12 +8,12 @@ This repo makes it easy to train language models on PyTorch/TPU. It relies on tw
 To use TPUs, all your computations happen on Google Cloud. Use the command `ctpu` to instantiate a TPU
 
 ```
-ctpu up -tf-version=pytorch-nightly -name=[lm_tpu] -tpu-size=[v3-8] -tpu-only -zone=[us-central1-a] -gcp-network=[default] -project=[my_proj] [-preemptible]
+ctpu up -tf-version=pytorch-0.5 -name=[lm_tpu] -tpu-size=[v3-8] -tpu-only -zone=[us-central1-a] -gcp-network=[default] -project=[my_proj] [-preemptible]
 ```
 
 - Replace the parameters in square prackets with the right values for you. Make sure to get the `zone`, `gcp-network`, `preemptible`, `project` right, especially if you are using credit from TFRC.
 
-- The `-tf-version=pytorch-nightly` argument is very important. It specifies that this TPU will be used to run PyTorch code (not Tensorflow code). It uses the nightly build, which has many bug fixes that are not in the prerelease `pytorch-0.1`.
+- The `-tf-version=pytorch-0.5` argument is very important. It specifies that this TPU will be used to run PyTorch code (not Tensorflow code). It uses the prerelease `pytorch-0.5`, which has many bug fixes that are not in the prerelease `pytorch-0.1`. Also, don't use `pytorch-nightly` as it changes frequntly and might introduce breaking changes.
 
 - Our code only supports Cloud TPUs (v2-8 and v3-8), and not the larger TPU pods. We will add support for those in the future.
 
@@ -30,7 +30,7 @@ ctpu up -tf-version=pytorch-nightly -name=[lm_tpu] -tpu-size=[v3-8] -tpu-only -z
 git clone https://github.com/allenai/tpu_pretrain.git
 cd tpu_pretrain
 conda env list
-conda activate pytorch-nightly  # use the nightly build
+conda activate pytorch-0.5  # use the prerelease pytorch-0.5
 export XRT_TPU_CONFIG="tpu_worker;0;$TPU_IP_ADDRESS:8470"  # where $TPU_IP_ADDRESS is the IP of the Cloud TPU created above
 ```
 

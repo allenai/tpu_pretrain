@@ -62,9 +62,9 @@ def main():
             AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=tuple(args.betas)))
 
         # derive warmup info
-        if args.warmup_proportion is None:
+        if args.warmup_proportion is not None:
             warmup_steps = int(args.warmup_proportion * num_train_optimization_steps + 0.5)
-        elif args.warmup_steps is None:
+        elif args.warmup_steps is not None:
             warmup_steps = args.warmup_steps
         else:
             raise Exception('What is the warmup?? Specify either warmup proportion or steps')

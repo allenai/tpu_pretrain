@@ -92,10 +92,12 @@ def main():
             tr_loss = loss * args.gradient_accumulation_steps if step == 0 else  tr_loss + loss * args.gradient_accumulation_steps
             if pbar is not None:
                 pbar.update(1)
-                pbar.set_description(desc=f'LR: {scheduler.get_lr()}')
+                # pbar.set_description(desc=f'LR: {scheduler.get_lr()}')
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 tpu_xm.optimizer_step(optimizer)
+                print(f'Before LR: {scheduler.get_lr()}')
                 scheduler.step()
+                print(f'After LR: {scheduler.get_lr()}')
                 optimizer.zero_grad()
 
         return tr_loss.item() / step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=

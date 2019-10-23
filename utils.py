@@ -80,6 +80,9 @@ def get_args_parser_with_general_args():
                         default=42,
                         help="random seed for initialization")
     parser.add_argument('--log-file', default=None, type=str)
+    parser.add_argument('--track_learning_rate',
+                        action='store_true',
+                        help="if true, will track learning rate in progress bar.")
     return parser
 
 

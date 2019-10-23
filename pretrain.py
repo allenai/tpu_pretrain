@@ -60,9 +60,17 @@ def main():
         optimizer = context.getattr_or(
             'optimizer',
             AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon, betas=tuple(args.betas)))
+
+        # derive warmup info
+        if args.warmup_proportion is not None:
+            warmup_steps = int(args.warmup_proportion * num_train_optimization_steps + 0.5)
+        elif args.warmup_steps is not None:
+            warmup_steps = args.warmup_steps
+        else:
+            raise Exception('What is the warmup?? Specify either warmup proportion or steps')
         scheduler = context.getattr_or(
             'scheduler',
-            WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=num_train_optimization_steps))
+            WarmupLinearSchedule(optimizer, warmup_steps=warmup_steps, t_total=num_train_optimization_steps))
 
         tr_loss = None
         pbar = None
@@ -80,17 +88,19 @@ def main():
                 loss = loss / args.gradient_accumulation_steps
             loss.backward()
             tracker.add(args.train_batch_size)
-            
+
             tr_loss = loss * args.gradient_accumulation_steps if step == 0 else  tr_loss + loss * args.gradient_accumulation_steps
             if pbar is not None:
                 pbar.update(1)
+                # pbar.set_description(desc=f'LR: {scheduler.get_lr()}')
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 tpu_xm.optimizer_step(optimizer)
+                print(f'Before LR: {scheduler.get_lr()}')
                 scheduler.step()
+                print(f'After LR: {scheduler.get_lr()}')
                 optimizer.zero_grad()
 
-            
-        return tr_loss.item()/step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
+        return tr_loss.item() / step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
 
     for epoch in range(args.start_epoch, args.epochs):
         # Load one training file into memory
@@ -100,7 +110,10 @@ def main():
         train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
 
         pbar_device = devices[0]
-        pbar_steps = int(train_sampler.num_samples / args.train_batch_size / n_tpu)
+        pbar_steps = utils.compute_num_steps_in_epoch(num_samples=train_sampler.num_samples,
+                                                      batch_size=args.train_batch_size,
+                                                      grad_accum_steps=args.gradient_accumulation_steps,
+                                                      n_tpu=n_tpu)
 
         logging.info(f'start training, epoch {epoch} on {len(devices)} cores for {pbar_steps} steps')
         start = time.time()

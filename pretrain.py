@@ -95,9 +95,12 @@ def main():
                 # pbar.set_description(desc=f'LR: {scheduler.get_lr()}')
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 tpu_xm.optimizer_step(optimizer)
-                print(f'Before LR: {scheduler.get_lr()}')
+                prev_lr = scheduler.get_last_lr()[0]
                 scheduler.step()
-                print(f'After LR: {scheduler.get_lr()}')
+                curr_lr = scheduler.get_last_lr()[0]
+                if args.track_learning_rate:
+                    if pbar is not None:
+                        pbar.set_description(f"Prev LR: {prev_lr} Curr LR: {curr_lr}")
                 optimizer.zero_grad()
 
         return tr_loss.item() / step  # `.item()` requires a trip from TPU to CPU, which is very slow. Use it only once per epoch=
@@ -112,9 +115,8 @@ def main():
         pbar_device = devices[0]
         pbar_steps = utils.compute_num_steps_in_epoch(num_samples=train_sampler.num_samples,
                                                       batch_size=args.train_batch_size,
-                                                      grad_accum_steps=args.gradient_accumulation_steps,
+                                                      grad_accum_steps=1, # the pbar steps should not take into account grad accumulation steps
                                                       n_tpu=n_tpu)
-
         logging.info(f'start training, epoch {epoch} on {len(devices)} cores for {pbar_steps} steps')
         start = time.time()
         losses = model(tpu_training_loop, train_dataloader)  # calls `tpu_training_loop` multiple times, once per TPU core

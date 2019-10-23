@@ -115,9 +115,9 @@ def main():
         pbar_device = devices[0]
         pbar_steps = utils.compute_num_steps_in_epoch(num_samples=train_sampler.num_samples,
                                                       batch_size=args.train_batch_size,
-                                                      grad_accum_steps=args.gradient_accumulation_steps,
+                                                      grad_accum_steps=1, # the pbar steps should not take into account grad accumulation steps
                                                       n_tpu=n_tpu)
-
+        import ipdb; ipdb.set_trace()
         logging.info(f'start training, epoch {epoch} on {len(devices)} cores for {pbar_steps} steps')
         start = time.time()
         losses = model(tpu_training_loop, train_dataloader)  # calls `tpu_training_loop` multiple times, once per TPU core

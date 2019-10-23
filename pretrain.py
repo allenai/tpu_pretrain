@@ -95,9 +95,9 @@ def main():
                 # pbar.set_description(desc=f'LR: {scheduler.get_lr()}')
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 tpu_xm.optimizer_step(optimizer)
-                prev_lr = scheduler.get_lr()
+                prev_lr = scheduler.get_last_lr()[0]
                 scheduler.step()
-                curr_lr = scheduler.get_lr()
+                curr_lr = scheduler.get_last_lr()[0]
                 if args.track_learning_rate:
                     if pbar is not None:
                         pbar.set_description(f"Prev LR: {prev_lr} Curr LR: {curr_lr}")

@@ -80,7 +80,7 @@ def main():
         tracker = tpu_xm.RateTracker()
 
         model.train()
-        for batch in loader:
+        for step, batch in loader:
             input_ids, input_mask, segment_ids, lm_label_ids, _ = batch
             outputs = model(input_ids, segment_ids, input_mask, lm_label_ids)
             loss = outputs[0]
